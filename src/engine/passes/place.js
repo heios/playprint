@@ -1,63 +1,73 @@
 import { pageDimensionsMm } from "../paperSizes.js";
 
 /**
- * Pass 3/6: place
+ * Pass 3/7: place
  *
- * Assigns each sized card an (x, y) in mm on the page, for the Grid layout
- * (SPEC.md user stories 37, 41 and 7–9). Grid draws uniform cells in aligned
- * rows/columns:
+ * Assigns each sized card an (x, y) in mm on the page, branching on
+ * `layout.mode` (SPEC.md "Layout modes", user stories 37–41 and 7–9). Every
+ * mode is a pure function of the sized cards + page geometry; adding a mode is
+ * a new branch here, never a new pass reaching across the seam.
  *
- *   - Hard rows come straight from `tokenize` (newlines → row breaks, a blank
- *     line → an empty row that still advances the y cursor by one row height).
- *   - Soft-wrap (story 9): a source row wider than the page's usable width is
- *     broken into several visual rows so no card runs off the sheet.
- *   - `layout.rowAlign` (left/center/right) positions each visual row's block
- *     within the usable width; with uniform cells and equal-length rows this
- *     keeps columns aligned.
- *   - `layout.gapMm` separates neighbouring cells both across and down.
+ *   - **grid**: aligned rows/columns of UNIFORM cells (widest footprint), honours
+ *     hard rows (newlines), blank spacer rows, soft-wrap, and `rowAlign`.
+ *   - **flexible**: tight ragged rows of per-card-width cells (uniform height),
+ *     packed left-to-right and wrapped when a row overflows; honours hard rows,
+ *     blank rows and `rowAlign`. In `uniform` sizing the widths all match, so it
+ *     degenerates to a tidy tight grid.
+ *   - **random**: flattens rows and lays every token on an auto-sized grid of
+ *     LARGE cells spanning the usable page; each card is centred in its cell and
+ *     carries its `cellMm` rect so the later `scatter` pass can tilt+shift it
+ *     WITHIN the cell (clamp-to-cell → no overlap → still cuttable). Paginates
+ *     when tokens exceed a page's cells.
  *
- * Positions are page-relative, offset by `page.marginMm`. Flexible/random
- * modes are later slices that branch on `layout.mode` here without touching
- * neighbouring passes.
+ * Positions are page-relative, offset by `page.marginMm`.
  *
  * Input:  { state, env, doc: { rows, cards } }
  * Output: { state, env, doc: { rows, cards: PlacedCard[], page } }
- *   PlacedCard: { ...SizedCard, xMm, yMm, widthMm, heightMm }
+ *   PlacedCard: { ...SizedCard, xMm, yMm, widthMm, heightMm, pageIndex?, cellMm? }
  */
 export function place({ state, env, doc }) {
   const marginMm = state?.page?.marginMm ?? 0;
+  const mode = state?.layout?.mode ?? "grid";
+  const { widthMm: pageWidthMm, heightMm: pageHeightMm } = pageDimensionsMm(state?.page ?? {});
+  const page = { widthMm: pageWidthMm, heightMm: pageHeightMm, marginMm };
+
+  const placed =
+    mode === "random"
+      ? placeRandom({ state, doc, page })
+      : mode === "flexible"
+        ? placeFlexible({ state, doc, page })
+        : placeGrid({ state, doc, page });
+
+  return { state, env, doc: { ...doc, cards: placed, page } };
+}
+
+/* --------------------------------------------------------------------------
+ * Grid: uniform cells in aligned rows/columns.
+ * ------------------------------------------------------------------------ */
+function placeGrid({ state, doc, page }) {
   const gapMm = state?.layout?.gapMm ?? 0;
   const rowAlign = state?.layout?.rowAlign ?? "center";
-  const { widthMm: pageWidthMm, heightMm: pageHeightMm } = pageDimensionsMm(state?.page ?? {});
-  const usableWidthMm = pageWidthMm - 2 * marginMm;
+  const usableWidthMm = page.widthMm - 2 * page.marginMm;
 
-  // Uniform footprint: every card shares one width/height (size pass).
-  const cellWidthMm = doc.cards.reduce((m, c) => Math.max(m, c.innerWidthMm), 0);
-  const cellHeightMm = doc.cards.reduce((m, c) => Math.max(m, c.innerHeightMm), 0);
+  const cellWidthMm = maxWidth(doc.cards);
+  const cellHeightMm = maxHeight(doc.cards);
 
-  // Rebuild source rows (including empty ones) from tokenize's `rows`, pairing
-  // each token with its sized card in order.
   const byRow = groupByRow(doc.rows, doc.cards);
-
-  // How many uniform cells fit across the usable width (at least one, so a
-  // single over-wide card still lands on its own visual row).
   const perVisualRow = Math.max(1, Math.floor((usableWidthMm + gapMm) / (cellWidthMm + gapMm)) || 1);
 
   const placed = [];
-  let yMm = marginMm;
+  let yMm = page.marginMm;
 
   for (const sourceRow of byRow) {
     if (sourceRow.length === 0) {
-      // Blank line → empty spacer row: advance one row height (+ gap).
       yMm += cellHeightMm + gapMm;
       continue;
     }
-
-    // Soft-wrap this source row into visual rows of at most `perVisualRow`.
     for (let i = 0; i < sourceRow.length; i += perVisualRow) {
       const visualRow = sourceRow.slice(i, i + perVisualRow);
       const rowWidthMm = visualRow.length * cellWidthMm + (visualRow.length - 1) * gapMm;
-      const startXMm = marginMm + alignOffset(rowAlign, usableWidthMm, rowWidthMm);
+      const startXMm = page.marginMm + alignOffset(rowAlign, usableWidthMm, rowWidthMm);
 
       visualRow.forEach((card, col) => {
         placed.push({
@@ -71,12 +81,124 @@ export function place({ state, env, doc }) {
       yMm += cellHeightMm + gapMm;
     }
   }
+  return placed;
+}
 
-  return {
-    state,
-    env,
-    doc: { ...doc, cards: placed, page: { widthMm: pageWidthMm, heightMm: pageHeightMm, marginMm } },
-  };
+/* --------------------------------------------------------------------------
+ * Flexible: tight ragged rows; each card keeps its own width, height uniform.
+ * ------------------------------------------------------------------------ */
+function placeFlexible({ state, doc, page }) {
+  const gapMm = state?.layout?.gapMm ?? 0;
+  const rowAlign = state?.layout?.rowAlign ?? "center";
+  const usableWidthMm = page.widthMm - 2 * page.marginMm;
+  const cellHeightMm = maxHeight(doc.cards);
+
+  const byRow = groupByRow(doc.rows, doc.cards);
+
+  const placed = [];
+  let yMm = page.marginMm;
+
+  for (const sourceRow of byRow) {
+    if (sourceRow.length === 0) {
+      yMm += cellHeightMm + gapMm;
+      continue;
+    }
+    // Greedily pack cards into visual rows: start a new row when the next card
+    // would overflow the usable width (but never leave a visual row empty, so a
+    // single over-wide card still lands on its own row).
+    let i = 0;
+    while (i < sourceRow.length) {
+      const visualRow = [];
+      let rowWidthMm = 0;
+      while (i < sourceRow.length) {
+        const w = sourceRow[i].innerWidthMm;
+        const addWidth = visualRow.length === 0 ? w : gapMm + w;
+        if (visualRow.length > 0 && rowWidthMm + addWidth > usableWidthMm + 1e-9) break;
+        rowWidthMm += addWidth;
+        visualRow.push(sourceRow[i]);
+        i++;
+      }
+      const startXMm = page.marginMm + alignOffset(rowAlign, usableWidthMm, rowWidthMm);
+      let xMm = startXMm;
+      for (const card of visualRow) {
+        placed.push({
+          ...card,
+          widthMm: card.innerWidthMm,
+          heightMm: cellHeightMm,
+          xMm,
+          yMm,
+        });
+        xMm += card.innerWidthMm + gapMm;
+      }
+      yMm += cellHeightMm + gapMm;
+    }
+  }
+  return placed;
+}
+
+/* --------------------------------------------------------------------------
+ * Random: large cells spanning the page; card centred, carries its cell rect.
+ * ------------------------------------------------------------------------ */
+function placeRandom({ state, doc, page }) {
+  const gapMm = state?.layout?.gapMm ?? 0;
+  const usableWidthMm = page.widthMm - 2 * page.marginMm;
+  const usableHeightMm = page.heightMm - 2 * page.marginMm;
+
+  const cardWidthMm = maxWidth(doc.cards);
+  const cardHeightMm = maxHeight(doc.cards);
+
+  // A card can tilt up to `random.rotationDeg`; a cell must fit the card's
+  // WORST-CASE rotated bounding box (plus the gap) so clamp-to-cell always has
+  // room. Column/row counts are chosen so cells stay at least this big.
+  const rotationDeg = num(state?.layout?.random?.rotationDeg);
+  const rad = (Math.abs(rotationDeg) * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const rotWidthMm = cardWidthMm * cos + cardHeightMm * sin;
+  const rotHeightMm = cardWidthMm * sin + cardHeightMm * cos;
+  const minCellWidthMm = rotWidthMm + gapMm;
+  const minCellHeightMm = rotHeightMm + gapMm;
+
+  // Fit as many large cells across/down as the page allows (at least one each).
+  const cols = Math.max(1, Math.floor((usableWidthMm + gapMm) / minCellWidthMm) || 1);
+  const rows = Math.max(1, Math.floor((usableHeightMm + gapMm) / minCellHeightMm) || 1);
+  const perPage = cols * rows;
+
+  // Cells span the usable area evenly (so scatter reads across the whole sheet).
+  const cellWidthMm = (usableWidthMm - (cols - 1) * gapMm) / cols;
+  const cellHeightMm = (usableHeightMm - (rows - 1) * gapMm) / rows;
+
+  const placed = [];
+  doc.cards.forEach((card, idx) => {
+    const pageIndex = Math.floor(idx / perPage);
+    const cellIndex = idx % perPage;
+    const cr = Math.floor(cellIndex / cols);
+    const cc = cellIndex % cols;
+
+    const cellXMm = page.marginMm + cc * (cellWidthMm + gapMm);
+    const cellYMm = page.marginMm + cr * (cellHeightMm + gapMm);
+
+    placed.push({
+      ...card,
+      widthMm: cardWidthMm,
+      heightMm: cardHeightMm,
+      // Base position centres the card in its cell; scatter shifts within.
+      xMm: cellXMm + (cellWidthMm - cardWidthMm) / 2,
+      yMm: cellYMm + (cellHeightMm - cardHeightMm) / 2,
+      pageIndex,
+      cellMm: { xMm: cellXMm, yMm: cellYMm, widthMm: cellWidthMm, heightMm: cellHeightMm },
+    });
+  });
+  return placed;
+}
+
+/* --------------------------------- helpers -------------------------------- */
+
+function maxWidth(cards) {
+  return cards.reduce((m, c) => Math.max(m, c.innerWidthMm), 0);
+}
+function maxHeight(cards) {
+  return cards.reduce((m, c) => Math.max(m, c.innerHeightMm), 0);
 }
 
 /** Left edge offset of a row block within the usable width for the alignment. */
@@ -100,4 +222,9 @@ function groupByRow(rows, cards) {
     out.push(row);
   }
   return out;
+}
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }

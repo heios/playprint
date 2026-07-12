@@ -31,8 +31,12 @@ import { seededUnitSigned, seededUnitVector } from "../seededTransform.js";
  */
 export function cardTransform({ state, env, doc }) {
   const seed = state?.seed ?? 0;
-  const offsetMm = num(state?.card?.offsetMm);
-  const tiltAmountDeg = num(state?.card?.rotationDeg);
+  // In Random layout mode the dedicated `scatter` pass owns per-card tilt/shift
+  // (clamp-to-cell), so this per-card playful drift stands down to keep the
+  // clamp bound exact (the card must stay centred in its cell for `scatter`).
+  const isRandom = (state?.layout?.mode ?? "grid") === "random";
+  const offsetMm = isRandom ? 0 : num(state?.card?.offsetMm);
+  const tiltAmountDeg = isRandom ? 0 : num(state?.card?.rotationDeg);
 
   const cards = doc.cards.map((card) => {
     const dir = seededUnitVector(seed, card.cardIndex);

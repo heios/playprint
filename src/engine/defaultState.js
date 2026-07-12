@@ -21,6 +21,11 @@ export function defaultState() {
       gapMm: 4,
       rowAlign: "center",
       grid: { columns: "auto" },
+      // Random (scatter) mode amounts (SPEC.md stories 39–40). Zero by default so
+      // switching to Random yields a tidy large-cell grid until the maker dials
+      // scatter up; each amount only SCALES a fixed seeded direction (continuous,
+      // reseed reshuffles — the #3 seeded-continuity invariant).
+      random: { rotationDeg: 0, shiftMm: 0 },
     },
     card: {
       font: { family: "Comic Neue", source: "builtin", sizePt: 24, letterSpacingMm: 0 },

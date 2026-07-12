@@ -13,5 +13,6 @@ import "./text.group.js";
 import "./presets.group.js";
 import "./border.group.js";
 import "./layout.group.js";
+import "./scatter.group.js";
 import "./letters.group.js";
 import "./playful.group.js";
