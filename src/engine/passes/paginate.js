@@ -1,5 +1,5 @@
 /**
- * Pass 6/6: paginate
+ * Pass 7/7: paginate
  *
  * Emits the final `LayoutResult` — the value `computeLayout` returns:
  * `{ pages: [{ widthMm, heightMm, marginMm, cards: [...] }] }`. Each page
@@ -8,7 +8,9 @@
  * convention) without recomputing geometry.
  *
  * Each card is trimmed to the render contract — `{ outerRect, innerRect,
- * glyphs, inner }` — dropping the intermediate sizing/placement scratch fields.
+ * glyphs, inner, tiltDeg }` — dropping the intermediate sizing/placement
+ * scratch fields. `tiltDeg` is the per-card playful rotation the renderer
+ * applies as a group transform about the card centre (SPEC.md story 34).
  *
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: LayoutResult.
@@ -18,11 +20,12 @@
  * this pass's output shape fixed.
  */
 export function paginate({ doc }) {
-  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner }) => ({
+  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner, tiltDeg }) => ({
     outerRect,
     innerRect,
     glyphs,
     inner,
+    tiltDeg,
   }));
 
   const page = doc.page ?? {};
