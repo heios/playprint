@@ -141,7 +141,11 @@ function glyphText(glyph, { fontFamily, sizePt, textColor }) {
   // pt→mm font-size conversion remains here.
   el.setAttribute("y", String(glyph.y));
   el.setAttribute("font-family", fontFamily);
-  el.setAttribute("font-size", `${sizePt * MM_PER_PT}mm`);
+  // Unitless, in the same mm user-coordinate space as `x`/`y` (both come from
+  // the page's mm `viewBox`). A physical-unit suffix here (e.g. "mm") would
+  // resolve against CSS/physical pixels instead of scaling with the
+  // viewBox-relative coordinates — see issue #29.
+  el.setAttribute("font-size", String(sizePt * MM_PER_PT));
   el.setAttribute("fill", textColor);
   if (glyph.rotationDeg) el.setAttribute("transform", `rotate(${glyph.rotationDeg} ${glyph.x} ${glyph.y})`);
   el.textContent = glyph.char;
