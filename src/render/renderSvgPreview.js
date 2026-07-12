@@ -65,8 +65,10 @@ function glyphText(glyph, { fontFamily, sizePt, textColor }) {
   const MM_PER_PT = 0.352778;
   const el = document.createElementNS(SVG_NS, "text");
   el.setAttribute("x", String(glyph.x));
-  // Engine gives the run's top edge; drop to a baseline ~1em down for drawing.
-  el.setAttribute("y", String(glyph.y + sizePt * MM_PER_PT));
+  // `glyph.y` is already the baseline (the engine owns all vertical geometry),
+  // so it is written unchanged — the renderer adds no vertical offset. Only the
+  // pt→mm font-size conversion remains here.
+  el.setAttribute("y", String(glyph.y));
   el.setAttribute("font-family", fontFamily);
   el.setAttribute("font-size", `${sizePt * MM_PER_PT}mm`);
   el.setAttribute("fill", textColor);

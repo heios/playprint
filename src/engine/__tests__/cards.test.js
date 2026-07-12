@@ -55,6 +55,30 @@ describe("tokenization → cards", () => {
       expect(g).toMatchObject({ char: expect.any(String), x: expect.any(Number), y: expect.any(Number), rotationDeg: expect.any(Number) });
     }
   });
+
+  it("emits a render-ready baseline glyph.y: run top edge dropped by the measured ascent", () => {
+    // The engine owns ALL vertical geometry so the mm-tree is directly drawable
+    // and the SVG/PDF renderers add no offset of their own (SPEC.md: preview and
+    // PDF share the same metrics and match exactly). The baseline is derived from
+    // the env's measured ascent, consistent with the engine's own vertical
+    // centring metric (the measured run height) — not a hardcoded ~1em value.
+    const ascentFraction = 0.8;
+    const state = makeState({ text: "hi", card: { paddingMm: 4, font: { sizePt: 24 } } });
+    const baselineEnv = createStubEnv({ charWidthMm: 5, ascentFraction });
+    const [card] = allCards(computeLayout(state, baselineEnv));
+
+    // Recompute the engine's inputs through the SAME env: the run box centred in
+    // the cell, and the baseline `ascent` below the run's top edge.
+    const { heightMm: runHeightMm, ascentMm } = baselineEnv.measureText("hi", { sizePt: 24 });
+    const runTopMm = card.innerRect.yMm + (card.innerRect.heightMm - runHeightMm) / 2;
+    const expectedBaseline = runTopMm + ascentMm;
+
+    for (const g of card.glyphs) {
+      expect(g.y).toBeCloseTo(expectedBaseline, 6);
+      // The baseline is strictly below the run's top edge (it is NOT the top edge).
+      expect(g.y).toBeGreaterThan(runTopMm);
+    }
+  });
 });
 
 describe("rows: newlines, blank lines, alignment", () => {
