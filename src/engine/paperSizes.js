@@ -20,7 +20,6 @@ B.forEach(([w, h], i) => (SIZES[`B${i}`] = { widthMm: w, heightMm: h }));
 SIZES.Letter = { widthMm: 215.9, heightMm: 279.4 };
 SIZES.Legal = { widthMm: 215.9, heightMm: 355.6 };
 SIZES.Tabloid = { widthMm: 279.4, heightMm: 431.8 };
-SIZES.A4 = { widthMm: 210, heightMm: 297 };
 
 export const PAPER_SIZES = SIZES;
 

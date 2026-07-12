@@ -145,8 +145,8 @@
  * @property {boolean} [textVisible]
  * @property {number} [tiltDeg]
  * @property {object} [tiltOriginMm]
- * @property {number} [tiltOriginMm.x]
- * @property {number} [tiltOriginMm.y]
+ * @property {number} [tiltOriginMm.xMm]
+ * @property {number} [tiltOriginMm.yMm]
  * @property {Rect} [outerRect]
  */
 
