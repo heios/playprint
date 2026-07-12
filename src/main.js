@@ -58,26 +58,79 @@ let loadedFontTtfBytes = null; // the resolved font's raw TTF bytes (issue #8: P
 
 const app = document.querySelector("#app");
 app.innerHTML = `
-  <h1>playprint</h1>
-  <p>Type words below — every whitespace-separated token becomes a bordered cut-out card.</p>
-  <div id="projects"></div>
-  <div id="controls"></div>
-  <div id="preview-toolbar">
-    <label>Zoom (%) <input id="zoom" type="range" min="25" max="200" step="5" /></label>
-    <label>Page <select id="page-select"></select></label>
-    <button id="download-pdf" type="button">Download PDF</button>
+  <div class="pp-shell">
+    <header class="pp-topbar">
+      <div class="pp-brand">
+        <span class="pp-logo" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <rect x="4.5" y="3.5" width="14" height="17" rx="2.4" transform="rotate(-8 11 12)" fill="#FF6A3D"/>
+            <rect x="8" y="6" width="14" height="17" rx="2.4" transform="rotate(7 15 14)" fill="#fff" stroke="#211C17" stroke-width="1.6"/>
+            <text x="15" y="19" text-anchor="middle" font-family="ui-rounded, 'SF Pro Rounded', system-ui, sans-serif" font-weight="800" font-size="11" fill="#211C17">A</text>
+          </svg>
+        </span>
+        <span class="pp-title">play<span>print</span></span>
+      </div>
+      <span class="pp-tagline">playful cut-out card maker</span>
+      <div class="pp-spacer"></div>
+      <button id="theme-toggle" class="pp-icon-btn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">☾</button>
+      <button id="download-pdf" class="pp-btn pp-btn-primary" type="button">Download PDF</button>
+    </header>
+    <div class="pp-workspace">
+      <aside class="pp-rail">
+        <div id="projects"></div>
+        <div id="controls"></div>
+      </aside>
+      <main class="pp-stage">
+        <div id="preview-toolbar" class="pp-stagebar">
+          <label class="pp-inline">Zoom <input id="zoom" type="range" min="25" max="200" step="5" /></label>
+          <label class="pp-inline">Page <select id="page-select"></select></label>
+          <div class="pp-spacer"></div>
+          <span id="tilt-warning" class="pp-tilt-warning" hidden>⚠ High tilt — letters may overlap</span>
+        </div>
+        <div class="pp-stage-scroll">
+          <section class="pp-focused">
+            <h2 class="pp-eyebrow">Focused card</h2>
+            <div id="second-preview"></div>
+          </section>
+          <section class="pp-sheets">
+            <h2 class="pp-eyebrow">All pages</h2>
+            <div id="preview"></div>
+          </section>
+        </div>
+      </main>
+    </div>
   </div>
-  <div id="second-preview"></div>
-  <div id="preview"></div>
 `;
 
 const projectsEl = document.querySelector("#projects");
+// Temporarily hidden: the projects panel's "where is this saved?" UX is unclear,
+// so we keep it out of the shell until it's debugged/redesigned. Flip to `true`
+// to bring it back — all wiring/storage below is intact. See issue #26.
+const PROJECTS_ENABLED = false;
 const controlsEl = document.querySelector("#controls");
 const previewEl = document.querySelector("#preview");
 const secondPreviewEl = document.querySelector("#second-preview");
 const zoomEl = document.querySelector("#zoom");
 const pageSelectEl = document.querySelector("#page-select");
 const downloadPdfEl = document.querySelector("#download-pdf");
+const themeToggleEl = document.querySelector("#theme-toggle");
+const tiltWarningEl = document.querySelector("#tilt-warning");
+
+// Owned light/dark palette (fixes the dark-mode illegibility defect): the app
+// sets its own theme rather than inheriting the OS colours into unstyled text.
+// index.html seeds `data-theme` from the OS preference before first paint; this
+// button lets the maker flip it.
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeToggleEl.textContent = theme === "dark" ? "☀" : "☾";
+}
+applyTheme(
+  document.documentElement.dataset.theme ||
+    (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+);
+themeToggleEl.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
 
 zoomEl.addEventListener("input", (event) => {
   ui.zoomPercent = Number(event.target.value) || 100;
@@ -91,17 +144,21 @@ pageSelectEl.addEventListener("change", (event) => {
 downloadPdfEl.addEventListener("click", () => downloadPdf());
 
 function render() {
-  renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
-    state = next;
-    activeProjectId = nextProjectId ?? null;
-    render();
-  }, {
-    activeProjectId,
-    locationHref: window.location.href,
-    onCopyLink: copyShareLink,
-    prompt: (message, defaultValue) => window.prompt(message, defaultValue),
-    confirm: (message) => window.confirm(message),
-  });
+  if (PROJECTS_ENABLED) {
+    renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
+      state = next;
+      activeProjectId = nextProjectId ?? null;
+      render();
+    }, {
+      activeProjectId,
+      locationHref: window.location.href,
+      onCopyLink: copyShareLink,
+      prompt: (message, defaultValue) => window.prompt(message, defaultValue),
+      confirm: (message) => window.confirm(message),
+    });
+  } else {
+    projectsEl.hidden = true;
+  }
 
   renderControls(
     controlsEl,
@@ -158,6 +215,11 @@ function render() {
   // the CURRENTLY selected font (not just some previously-loaded one) has
   // finished loading and its TTF bytes are in hand to embed.
   downloadPdfEl.disabled = !(fontStatus.state === "ready" && currentFontKey() === loadedFontKey && loadedFontTtfBytes);
+
+  // Tilt legibility guardrail (SPEC-adjacent UX): warn once per-card rotation
+  // gets steep enough that adjacent glyphs start to collide. Purely
+  // presentational — it reads the state the engine already has, feeds nothing in.
+  tiltWarningEl.hidden = (state.card?.rotationDeg ?? 0) <= 18;
 }
 
 /**
