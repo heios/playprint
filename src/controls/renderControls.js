@@ -94,6 +94,12 @@ function createInput(control, state) {
     el.max = String(control.max ?? 40);
     el.step = String(control.step ?? 0.5);
     el.value = String(value ?? 0);
+  } else if (control.type === "number") {
+    el.type = "number";
+    if (control.min != null) el.min = String(control.min);
+    if (control.max != null) el.max = String(control.max);
+    if (control.step != null) el.step = String(control.step);
+    el.value = String(value ?? 0);
   } else {
     el.type = "text";
     el.value = value ?? "";

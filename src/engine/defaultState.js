@@ -26,7 +26,20 @@ export function defaultState() {
       font: { family: "Comic Neue", source: "builtin", sizePt: 24, letterSpacingMm: 0 },
       textColor: "#000000",
       paddingMm: 4,
+      // Per-card playful drift (seeded, continuous — SPEC.md stories 34–36).
+      offsetMm: 0,
+      rotationDeg: 0,
       inner: { color: "#000000", strokeMm: 0.5, radiusMm: 0, visible: true },
+    },
+    // Playful letter styling (SPEC.md stories 29–36). All amounts default to 0
+    // so the ticket-#2 baseline (flat, centred text) is unchanged until a maker
+    // dials playfulness up; every amount only SCALES a fixed seeded direction.
+    letters: {
+      style: "random",
+      rotationDeg: 0,
+      verticalMm: 0,
+      horizontalJitterMm: 0, // random style only
+      waveFrequency: 1, // wave style only (cycles per word)
     },
   };
 }

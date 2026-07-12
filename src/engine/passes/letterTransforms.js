@@ -1,12 +1,17 @@
+import { letterParams, glyphOffset } from "../letterMotion.js";
+
 /**
  * Pass 4/6: letterTransforms
  *
- * Expands each placed card's token into per-glyph geometry. Issue #2 lays the
- * text out flat and centred inside the card (no playful transforms yet): each
- * glyph gets an absolute (x, y) in mm and `rotationDeg: 0`. The seeded playful
- * styles (random/wave/alternating/smile — SPEC.md stories 29–36) are a later
- * slice that only adds per-glyph offsets/rotation on top of these base
- * positions, keeping the "seeded continuity" invariant.
+ * Expands each placed card's token into per-glyph geometry. First it lays the
+ * text out flat and centred inside the card (the ticket-#2 baseline), then it
+ * ADDS the seeded playful offset for the active style (random/wave/alternating/
+ * smile — SPEC.md stories 29–33) on top of each glyph's flat position and
+ * rotation. Every amount only scales a fixed seeded direction (via the shared
+ * `letterMotion` helper), so dragging a slider morphs the word continuously and
+ * only a new `seed` reshuffles (the "seeded continuity" invariant). The inner
+ * border was already grown in the `size` pass by the same helper's worst-case
+ * excursion, so no glyph here can cross the cut line (story 14).
  *
  * Glyph x is the left edge of that character within the centred text run;
  * glyph y is the text baseline — render-ready, so the SVG/PDF renderers draw
@@ -27,9 +32,12 @@
 export function letterTransforms({ state, env, doc }) {
   const sizePt = state?.card?.font?.sizePt;
   const fontFamily = state?.card?.font?.family;
+  const seed = state?.seed ?? 0;
+  const params = letterParams(state?.letters);
 
   const cards = doc.cards.map((card) => {
     const chars = [...card.token];
+    const n = chars.length;
     // Measure the whole run once for its ascent (top edge → baseline). Reusing
     // the same measurement the engine centres by keeps the vertical metric
     // consistent with `textHeightMm`.
@@ -42,10 +50,17 @@ export function letterTransforms({ state, env, doc }) {
     const baselineMm = runTopMm + ascentMm;
 
     let prefix = "";
-    const glyphs = chars.map((char) => {
+    const glyphs = chars.map((char, i) => {
       const { widthMm: prefixWidthMm } = env.measureText(prefix, { sizePt, fontFamily });
       prefix += char;
-      return { char, x: runLeftMm + prefixWidthMm, y: baselineMm, rotationDeg: 0 };
+      // Seeded playful offset ADDED to the flat position; amounts only scale it.
+      const { dxMm, dyMm, rotationDeg } = glyphOffset(params, seed, card.cardIndex, i, n);
+      return {
+        char,
+        x: runLeftMm + prefixWidthMm + dxMm,
+        y: baselineMm + dyMm,
+        rotationDeg,
+      };
     });
 
     return { ...card, glyphs };

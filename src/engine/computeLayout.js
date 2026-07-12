@@ -3,6 +3,7 @@ import { size } from "./passes/size.js";
 import { place } from "./passes/place.js";
 import { letterTransforms } from "./passes/letterTransforms.js";
 import { mat } from "./passes/mat.js";
+import { cardTransform } from "./passes/cardTransform.js";
 import { paginate } from "./passes/paginate.js";
 
 /**
@@ -12,7 +13,7 @@ import { paginate } from "./passes/paginate.js";
  * an intermediate `{ state, env, doc }` value through a fixed pipeline of
  * discrete, pure passes, each living in its own module under `./passes/`:
  *
- *   tokenize → size → place → letterTransforms → mat → paginate
+ *   tokenize → size → place → letterTransforms → mat → cardTransform → paginate
  *
  * Every pass is a plain function `({ state, env, doc }) → { state, env, doc }`
  * (the final pass, `paginate`, instead returns the `LayoutResult` itself:
@@ -30,7 +31,7 @@ import { paginate } from "./passes/paginate.js";
  * canvas in the real app and a stub in tests (see
  * `./__tests__/stubEnv.js`), so preview and PDF measure text identically.
  */
-const passes = [tokenize, size, place, letterTransforms, mat, paginate];
+const passes = [tokenize, size, place, letterTransforms, mat, cardTransform, paginate];
 
 export function computeLayout(state, env) {
   let ctx = { state, env, doc: undefined };
