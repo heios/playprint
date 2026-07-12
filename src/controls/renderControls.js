@@ -7,9 +7,23 @@ import { getRegisteredControlGroups } from "./registry.js";
  * self-register (see `./groups/index.js`) — this file never changes when a
  * group is added.
  *
- * Not unit-tested against the DOM (SPEC.md "Testing Decisions": assert
- * external engine behaviour, not DOM structure) — the registry itself
- * carries the tested contract.
+ * Reconciles in place rather than tearing the panel down on every call
+ * (issue #23A). The app's render loop calls `renderControls` again on every
+ * `onChange` — including the `input` events a slider fires continuously
+ * while being dragged. A naive `container.replaceChildren()` here used to
+ * detach the very `<input type="range">` the pointer was dragging, which
+ * both lost pointer capture (drag died after one step) and would have
+ * fought any live focus/caret in a text control. Instead: when the set of
+ * rendered groups/controls has the same shape as last time (the overwhelmingly
+ * common case — a value changed, not the control set), existing DOM nodes are
+ * reused and only their *value* is refreshed; nodes are only created/removed
+ * when a control's visibility actually changes.
+ *
+ * Not unit-tested against DOM *structure* in general (SPEC.md "Testing
+ * Decisions": assert external engine behaviour, not DOM structure) — but the
+ * reconciliation behaviour itself (identity survives a re-render; readout
+ * tracks the value) is exactly the externally-observable contract issue #23
+ * asks for, so it IS covered (`__tests__/renderControls.test.js`).
  *
  * @param {HTMLElement} container
  * @param {object} state current ProjectState
@@ -22,22 +36,92 @@ import { getRegisteredControlGroups } from "./registry.js";
  *   loading-in-flight fact, not a project setting.
  */
 export function renderControls(container, state, onChange, extra = {}) {
-  container.replaceChildren();
+  const visibleGroups = getRegisteredControlGroups().filter((group) => !group.isVisible || group.isVisible(state));
 
-  for (const group of getRegisteredControlGroups()) {
-    if (group.isVisible && !group.isVisible(state)) continue;
+  // Reuse a per-container map of already-built control/group nodes across
+  // calls, so a control that already exists keeps its DOM identity (and
+  // therefore its live drag/focus) instead of being recreated.
+  const registryCache = (container.__ppControlCache ??= new Map());
+  const seenKeys = new Set();
+  let previousFieldset = null;
 
-    const fieldset = document.createElement("fieldset");
-    const legend = document.createElement("legend");
-    legend.textContent = group.label;
-    fieldset.appendChild(legend);
+  for (const group of visibleGroups) {
+    const visibleControls = group.controls.filter((control) => !control.isVisible || control.isVisible(state));
 
-    for (const control of group.controls) {
-      if (control.isVisible && !control.isVisible(state)) continue;
-      fieldset.appendChild(renderControl(control, state, onChange, extra));
+    let entry = registryCache.get(group.id);
+    if (!entry || entry.type !== "group") {
+      const fieldset = document.createElement("fieldset");
+      const legend = document.createElement("legend");
+      legend.textContent = group.label;
+      fieldset.appendChild(legend);
+      entry = { type: "group", fieldset, controls: new Map() };
+      registryCache.set(group.id, entry);
+    }
+    seenKeys.add(group.id);
+
+    // Keep the fieldset in the right document position/order without
+    // rebuilding it. Only actually move it if it isn't already there —
+    // re-inserting a node that already occupies that slot is a same-position
+    // no-op in the DOM, but it can still drop focus/selection on a live
+    // descendant in some engines, so it's avoided rather than relied on.
+    const desiredAfter = previousFieldset ? previousFieldset.nextSibling : container.firstChild;
+    if (desiredAfter !== entry.fieldset) {
+      container.insertBefore(entry.fieldset, desiredAfter);
+    }
+    previousFieldset = entry.fieldset;
+
+    const seenControlKeys = new Set();
+    let previousControlNode = entry.fieldset.querySelector("legend");
+    for (const control of visibleControls) {
+      let controlEntry = entry.controls.get(control.id);
+      if (!controlEntry || controlEntry.control.type !== control.type) {
+        const node = renderControl(control, state, onChange, extra);
+        controlEntry = { control, node };
+        entry.controls.set(control.id, controlEntry);
+      } else if (control.type === "button") {
+        // Stateless action: nothing to sync (its label doesn't depend on
+        // `state`), and rebuilding would only cost a listener churn.
+        controlEntry.control = control;
+      } else if (control.type === "font-picker") {
+        // No live drag/focus lives inside a font-picker (it's buttons + a
+        // progress bar), so it's safe/simplest to rebuild its content in
+        // place on every render — this is how it picks up async font-load
+        // progress (`extra.fontStatus`) and newly-selected options without
+        // needing a value-sync path of its own (issue #23A only demands DOM
+        // identity survive for controls that can have an in-flight
+        // drag/keystroke, which a font-picker never does).
+        controlEntry.control = control;
+        const freshNode = renderControl(control, state, onChange, extra);
+        controlEntry.node.replaceWith(freshNode);
+        controlEntry.node = freshNode;
+      } else {
+        controlEntry.control = control;
+        updateControl(controlEntry.node, control, state);
+      }
+      seenControlKeys.add(control.id);
+
+      const desiredControlAfter = previousControlNode ? previousControlNode.nextSibling : entry.fieldset.firstChild;
+      if (desiredControlAfter !== controlEntry.node) {
+        entry.fieldset.insertBefore(controlEntry.node, desiredControlAfter);
+      }
+      previousControlNode = controlEntry.node;
     }
 
-    container.appendChild(fieldset);
+    // Drop controls that are no longer visible for this state.
+    for (const [id, controlEntry] of entry.controls) {
+      if (!seenControlKeys.has(id)) {
+        controlEntry.node.remove();
+        entry.controls.delete(id);
+      }
+    }
+  }
+
+  // Drop groups that are no longer visible for this state.
+  for (const [id, entry] of registryCache) {
+    if (!seenKeys.has(id)) {
+      entry.fieldset.remove();
+      registryCache.delete(id);
+    }
   }
 }
 
@@ -56,9 +140,33 @@ function renderControl(control, state, onChange, extra) {
   }
 
   const label = document.createElement("label");
-  label.textContent = control.label;
-
   const input = createInput(control, state);
+
+  if (control.type === "slider") {
+    // Live value readout beside the label (issue #23B — the prototype had
+    // this; the shipped panel dropped it). Purely additive: no change to
+    // the control-registration API, it just reads `control.getValue`.
+    const labelRow = document.createElement("span");
+    labelRow.className = "pp-label-row";
+
+    const labelText = document.createElement("span");
+    labelText.className = "pp-label-text";
+    labelText.textContent = control.label;
+    labelRow.appendChild(labelText);
+
+    const readout = document.createElement("output");
+    readout.className = "slider-readout";
+    readout.textContent = input.value;
+    labelRow.appendChild(readout);
+
+    label.appendChild(labelRow);
+    input.addEventListener("input", () => {
+      readout.textContent = input.value;
+    });
+  } else {
+    label.appendChild(document.createTextNode(control.label));
+  }
+
   const eventName = control.type === "select" || control.type === "toggle" ? "change" : "input";
   input.addEventListener(eventName, (event) => {
     const value = control.type === "toggle" ? event.target.checked : event.target.value;
@@ -67,6 +175,42 @@ function renderControl(control, state, onChange, extra) {
 
   label.appendChild(input);
   return label;
+}
+
+/**
+ * Refreshes an already-built control node's *value* in place (issue #23A) —
+ * never recreates the `<input>`, so an in-progress drag/focus survives a
+ * re-render triggered by this very control's own `input` event, or by a
+ * sibling control changing. Only called for slider/toggle/select/text/
+ * number/color controls; `button` and `font-picker` are handled by their own
+ * branches in the caller (see `renderControls`), since neither has an
+ * `<input>`-shaped value to sync this way.
+ */
+function updateControl(node, control, state) {
+  const input = node.querySelector("input, textarea, select");
+  if (!input) return;
+
+  // Don't clobber a value the maker is actively editing/dragging: only sync
+  // when the DOM doesn't already reflect the latest value (e.g. a re-render
+  // triggered by an unrelated control). This also protects focus/caret in
+  // text inputs, since setting `.value` to its current value is a no-op but
+  // setting it while focused with a *different* value would move the caret.
+  if (document.activeElement === input) return;
+
+  const value = control.getValue(state);
+  if (control.type === "toggle") {
+    input.checked = Boolean(value);
+  } else if (control.type === "select") {
+    input.value = value;
+  } else {
+    const next = control.type === "slider" || control.type === "number" ? String(value ?? 0) : (value ?? "");
+    if (input.value !== next) input.value = next;
+  }
+
+  if (control.type === "slider") {
+    const readout = node.querySelector(".slider-readout");
+    if (readout) readout.textContent = input.value;
+  }
 }
 
 function createInput(control, state) {
