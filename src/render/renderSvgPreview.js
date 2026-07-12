@@ -39,10 +39,20 @@ export function renderSvgPreview(layoutResult, opts = {}) {
   svg.appendChild(sheet);
 
   for (const card of page.cards) {
-    if (card.inner?.visible !== false) svg.appendChild(borderRect(card.innerRect, card.inner));
-    for (const glyph of card.glyphs ?? []) {
-      svg.appendChild(glyphText(glyph, { fontFamily, sizePt, textColor }));
+    // Per-card playful tilt is a group rotation about the card centre (the
+    // engine emits `tiltDeg`; the renderer stays thin and only applies it).
+    const group = document.createElementNS(SVG_NS, "g");
+    if (card.tiltDeg) {
+      const cx = card.innerRect.xMm + card.innerRect.widthMm / 2;
+      const cy = card.innerRect.yMm + card.innerRect.heightMm / 2;
+      group.setAttribute("transform", `rotate(${card.tiltDeg} ${cx} ${cy})`);
     }
+
+    if (card.inner?.visible !== false) group.appendChild(borderRect(card.innerRect, card.inner));
+    for (const glyph of card.glyphs ?? []) {
+      group.appendChild(glyphText(glyph, { fontFamily, sizePt, textColor }));
+    }
+    svg.appendChild(group);
   }
 
   return svg;
