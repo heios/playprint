@@ -18,31 +18,35 @@
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: LayoutResult.
  *
- * Issue #2 emits a single page holding every card; multi-page vertical
- * overflow is a later slice that only splits `cards` across pages here, keeping
- * this pass's output shape fixed.
+ * Cards that carry a `pageIndex` (Random mode's large-cell paging) are split
+ * across that many pages; otherwise every card lands on a single page (the Grid
+ * / Flexible modes flow vertically on one sheet for now). The render contract
+ * per card stays fixed regardless of how many pages there are.
  */
 export function paginate({ doc }) {
-  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm }) => ({
-    outerRect,
-    innerRect,
-    glyphs,
-    inner,
-    outer,
-    textVisible,
-    tiltDeg,
-    tiltOriginMm,
+  const page = doc.page ?? {};
+
+  // Group cards by their emitted page (default page 0), preserving order.
+  const byPage = new Map();
+  for (const card of doc.cards) {
+    const idx = card.pageIndex ?? 0;
+    if (!byPage.has(idx)) byPage.set(idx, []);
+    byPage.get(idx).push(trim(card));
+  }
+  if (byPage.size === 0) byPage.set(0, []);
+
+  const pageIndices = [...byPage.keys()].sort((a, b) => a - b);
+  const pages = pageIndices.map((idx) => ({
+    widthMm: page.widthMm,
+    heightMm: page.heightMm,
+    marginMm: page.marginMm,
+    cards: byPage.get(idx),
   }));
 
-  const page = doc.page ?? {};
-  return {
-    pages: [
-      {
-        widthMm: page.widthMm,
-        heightMm: page.heightMm,
-        marginMm: page.marginMm,
-        cards,
-      },
-    ],
-  };
+  return { pages };
+}
+
+/** Trim an internal card down to the render contract. */
+function trim({ outerRect, innerRect, glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm }) {
+  return { outerRect, innerRect, glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm };
 }

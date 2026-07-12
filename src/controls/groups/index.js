@@ -15,5 +15,6 @@ import "./border.group.js";
 import "./mat.group.js";
 import "./visibility.group.js";
 import "./layout.group.js";
+import "./scatter.group.js";
 import "./letters.group.js";
 import "./playful.group.js";

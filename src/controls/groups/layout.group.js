@@ -1,17 +1,35 @@
 import { registerControlGroup } from "../registry.js";
 
 /**
- * Layout controls for the Grid/uniform slice (SPEC.md user stories 15, 41):
- * the gap between neighbouring cards and the row alignment. Each reads/writes
- * its slice of `state.layout` purely.
+ * Layout controls (SPEC.md user stories 10–15, 37–41): the layout MODE (Grid /
+ * Flexible / Random), the card SIZING (uniform / fit), the gap between
+ * neighbouring cards and the row alignment. Each reads/writes its slice of
+ * `state.layout` purely.
  *
- * Self-registered group (new file + one barrel import). Later slices add
- * layout-mode and card-sizing controls the same way.
+ * Self-registered group (new file + one barrel import). The Random-only scatter
+ * sliders live in their own `scatter.group.js` so this group has no mode-gated
+ * controls of its own.
  */
 registerControlGroup({
   id: "layout",
   label: "Layout",
   controls: [
+    {
+      id: "layout-mode",
+      label: "Layout mode",
+      type: "select",
+      options: ["grid", "flexible", "random"],
+      getValue: (state) => state.layout?.mode ?? "grid",
+      setValue: (state, value) => ({ ...state, layout: { ...state.layout, mode: value } }),
+    },
+    {
+      id: "card-sizing",
+      label: "Card sizing",
+      type: "select",
+      options: ["uniform", "fit"],
+      getValue: (state) => state.layout?.cardSizing ?? "uniform",
+      setValue: (state, value) => ({ ...state, layout: { ...state.layout, cardSizing: value } }),
+    },
     {
       id: "gap",
       label: "Gap (mm)",
