@@ -103,6 +103,10 @@ app.innerHTML = `
 `;
 
 const projectsEl = document.querySelector("#projects");
+// Temporarily hidden: the projects panel's "where is this saved?" UX is unclear,
+// so we keep it out of the shell until it's debugged/redesigned. Flip to `true`
+// to bring it back — all wiring/storage below is intact. See issue #26.
+const PROJECTS_ENABLED = false;
 const controlsEl = document.querySelector("#controls");
 const previewEl = document.querySelector("#preview");
 const secondPreviewEl = document.querySelector("#second-preview");
@@ -140,17 +144,21 @@ pageSelectEl.addEventListener("change", (event) => {
 downloadPdfEl.addEventListener("click", () => downloadPdf());
 
 function render() {
-  renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
-    state = next;
-    activeProjectId = nextProjectId ?? null;
-    render();
-  }, {
-    activeProjectId,
-    locationHref: window.location.href,
-    onCopyLink: copyShareLink,
-    prompt: (message, defaultValue) => window.prompt(message, defaultValue),
-    confirm: (message) => window.confirm(message),
-  });
+  if (PROJECTS_ENABLED) {
+    renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
+      state = next;
+      activeProjectId = nextProjectId ?? null;
+      render();
+    }, {
+      activeProjectId,
+      locationHref: window.location.href,
+      onCopyLink: copyShareLink,
+      prompt: (message, defaultValue) => window.prompt(message, defaultValue),
+      confirm: (message) => window.confirm(message),
+    });
+  } else {
+    projectsEl.hidden = true;
+  }
 
   renderControls(
     controlsEl,
