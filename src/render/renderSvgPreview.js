@@ -12,9 +12,11 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * conversion here. CSS sizes the element on screen; the mm viewBox is the
  * single geometric contract shared with the PDF exporter.
  *
- * Each card draws its inner border rect (honouring colour, stroke-mm, corner
- * radius, and the on/off `visible` flag) and its glyphs as `<text>` at the
- * mm positions the engine chose.
+ * Each card draws its outer mat rect (when present) behind its inner border
+ * rect (both honouring their own colour, stroke-mm, corner radius, and per-pass
+ * `visible` flag — SPEC.md stories 22, 27) and its glyphs as `<text>` at the mm
+ * positions the engine chose. The glyphs are gated by the card's `textVisible`
+ * flag so the Text layer can be hidden for a print pass.
  *
  * @param {{ pages: Array<{ widthMm:number, heightMm:number, cards: Array<object> }> }} layoutResult
  * @param {{ fontFamily?: string, sizePt?: number, textColor?: string }} [opts]
@@ -48,9 +50,15 @@ export function renderSvgPreview(layoutResult, opts = {}) {
       group.setAttribute("transform", `rotate(${card.tiltDeg} ${xMm} ${yMm})`);
     }
 
+    // Outer mat first (behind), then the inner border, then the text — each
+    // gated by the per-pass visibility the engine emitted (the renderer only
+    // reads flags; it derives no geometry).
+    if (card.outer?.visible) group.appendChild(borderRect(card.outerRect, card.outer));
     if (card.inner?.visible !== false) group.appendChild(borderRect(card.innerRect, card.inner));
-    for (const glyph of card.glyphs ?? []) {
-      group.appendChild(glyphText(glyph, { fontFamily, sizePt, textColor }));
+    if (card.textVisible !== false) {
+      for (const glyph of card.glyphs ?? []) {
+        group.appendChild(glyphText(glyph, { fontFamily, sizePt, textColor }));
+      }
     }
     svg.appendChild(group);
   }

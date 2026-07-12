@@ -30,6 +30,20 @@ export function defaultState() {
       offsetMm: 0,
       rotationDeg: 0,
       inner: { color: "#000000", strokeMm: 0.5, radiusMm: 0, visible: true },
+      // The optional second border (mat) behind each card (SPEC.md stories
+      // 20–28). Disabled by default so the ticket-#2/#3 baseline is unchanged:
+      // with `enabled: false` the outer border mirrors the inner and no float
+      // happens. When enabled the inner floats inside a larger coloured mat,
+      // clamped to satisfy `minClearanceMm` and `balanceRatio` (see passes/mat.js).
+      outer: {
+        enabled: false,
+        color: "#ff5aa5",
+        strokeMm: 0.5,
+        radiusMm: 0,
+        matPercent: 25, // mat margin as a % of the inner card's size
+        minClearanceMm: 2, // hard floor: inner never closer than this to the outer
+        balanceRatio: 2, // k: enforce max(cornerGap) < k·min(cornerGap)
+      },
     },
     // Playful letter styling (SPEC.md stories 29–36). All amounts default to 0
     // so the ticket-#2 baseline (flat, centred text) is unchanged until a maker
@@ -41,5 +55,9 @@ export function defaultState() {
       horizontalJitterMm: 0, // random style only
       waveFrequency: 1, // wave style only (cycles per word)
     },
+    // Per-print-pass layer visibility (SPEC.md stories 27–28): show just the
+    // outer mat, the inner card, and/or the text for each matting pass. All on
+    // by default so the full card renders until a maker isolates a layer.
+    visibility: { outer: true, inner: true, text: true },
   };
 }
