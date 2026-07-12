@@ -7,6 +7,8 @@ import { renderSvgPreview } from "./render/renderSvgPreview.js";
 import { renderSecondPreview, widestCardIndex } from "./render/renderSecondPreview.js";
 import { loadFont } from "./fonts/loadFont.js";
 import { COMIC_NEUE_FAMILY } from "./fonts/comicNeue.js";
+import { readStateFromHash } from "./state/shareUrl.js";
+import { renderProjectsPanel } from "./projects/renderProjectsPanel.js";
 import "./style.css";
 
 /**
@@ -31,10 +33,22 @@ import "./style.css";
  * main and second previews read the same `renderOpts.fontFamily`, so a
  * newly-registered `FontFace` shows up in both at once (SPEC.md: "the
  * selected font is reflected in both previews").
+ *
+ * Projects & sharing (issue #9, SPEC.md stories 58-62): a shared link's hash
+ * fragment wins over the built-in starter state on first load (a colleague
+ * opening a share link should see the shared design, not the default demo
+ * text) — `readStateFromHash` returns `null` for an absent/corrupted hash,
+ * so the fallback is untouched otherwise. `activeProjectId` tracks which
+ * saved project (if any) the current state was loaded from/saved as, purely
+ * for the panel's "Save" button; it is view-only UI state, never part of
+ * `ProjectState` itself, same as `ui` below.
  */
-let state = { ...defaultState(), text: "January February March" };
+const sharedState = readStateFromHash(window.location.hash);
+let state = sharedState ?? { ...defaultState(), text: "January February March" };
+let activeProjectId = null;
 const ui = { zoomPercent: 100, selectedPageIndex: 0, selectedCardIndex: null };
 const env = createBrowserEnv();
+const storage = window.localStorage;
 
 /** @type {{ state: "idle"|"loading"|"ready"|"error", family?: string, loadedBytes?: number, totalBytes?: number|null }} */
 let fontStatus = { state: "idle" };
@@ -44,6 +58,7 @@ const app = document.querySelector("#app");
 app.innerHTML = `
   <h1>playprint</h1>
   <p>Type words below — every whitespace-separated token becomes a bordered cut-out card.</p>
+  <div id="projects"></div>
   <div id="controls"></div>
   <div id="preview-toolbar">
     <label>Zoom (%) <input id="zoom" type="range" min="25" max="200" step="5" /></label>
@@ -53,6 +68,7 @@ app.innerHTML = `
   <div id="preview"></div>
 `;
 
+const projectsEl = document.querySelector("#projects");
 const controlsEl = document.querySelector("#controls");
 const previewEl = document.querySelector("#preview");
 const secondPreviewEl = document.querySelector("#second-preview");
@@ -70,6 +86,18 @@ pageSelectEl.addEventListener("change", (event) => {
 });
 
 function render() {
+  renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
+    state = next;
+    activeProjectId = nextProjectId ?? null;
+    render();
+  }, {
+    activeProjectId,
+    locationHref: window.location.href,
+    onCopyLink: copyShareLink,
+    prompt: (message, defaultValue) => window.prompt(message, defaultValue),
+    confirm: (message) => window.confirm(message),
+  });
+
   renderControls(
     controlsEl,
     state,
@@ -160,6 +188,21 @@ function ensureFontLoaded(font) {
       fontStatus = { state: "error", family };
       render();
     });
+}
+
+/**
+ * Puts the share link (SPEC.md story 61) on the clipboard when available,
+ * falling back to updating the visible URL hash so the maker can copy it
+ * manually (e.g. insecure context / clipboard permission denied).
+ */
+function copyShareLink(url) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).catch(() => {
+      window.location.hash = url.slice(url.indexOf("#") + 1);
+    });
+  } else {
+    window.location.hash = url.slice(url.indexOf("#") + 1);
+  }
 }
 
 render();

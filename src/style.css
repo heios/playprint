@@ -76,3 +76,35 @@ fieldset {
   color: #b00020;
   font-size: 0.85rem;
 }
+
+.projects-warning {
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: #664d03;
+}
+
+.projects-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.projects-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.projects-row.active {
+  font-weight: bold;
+}
+
+.projects-row span {
+  flex: 1;
+}
