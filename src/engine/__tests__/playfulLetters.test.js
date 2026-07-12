@@ -130,6 +130,16 @@ describe("per-card tilt & shift", () => {
     expect(new Set(tilts.map((t) => t.toFixed(6))).size).toBeGreaterThan(1);
   });
 
+  it("emits the tilt origin (inner-rect centre) so the renderer computes no geometry", () => {
+    const cards = allCards(computeLayout(makeState({ text: "a b c d", card: { rotationDeg: 12, offsetMm: 5 } }), env));
+    for (const c of cards) {
+      // The engine owns the rotation centre; the renderer just reads it.
+      expect(c.tiltOriginMm).toBeDefined();
+      expect(c.tiltOriginMm.xMm).toBeCloseTo(c.innerRect.xMm + c.innerRect.widthMm / 2, 9);
+      expect(c.tiltOriginMm.yMm).toBeCloseTo(c.innerRect.yMm + c.innerRect.heightMm / 2, 9);
+    }
+  });
+
   it("shifts each card by a seeded vector scaled by card.offsetMm", () => {
     const base = allCards(computeLayout(makeState({ text: "a b c d" }), env));
     const shifted = allCards(computeLayout(makeState({ text: "a b c d", card: { offsetMm: 5 } }), env));

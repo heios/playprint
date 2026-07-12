@@ -8,9 +8,10 @@
  * convention) without recomputing geometry.
  *
  * Each card is trimmed to the render contract — `{ outerRect, innerRect,
- * glyphs, inner, tiltDeg }` — dropping the intermediate sizing/placement
- * scratch fields. `tiltDeg` is the per-card playful rotation the renderer
- * applies as a group transform about the card centre (SPEC.md story 34).
+ * glyphs, inner, tiltDeg, tiltOriginMm }` — dropping the intermediate
+ * sizing/placement scratch fields. `tiltDeg` is the per-card playful rotation
+ * the renderer applies as a group transform about `tiltOriginMm`, the
+ * engine-emitted rotation centre (SPEC.md story 34).
  *
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: LayoutResult.
@@ -20,12 +21,13 @@
  * this pass's output shape fixed.
  */
 export function paginate({ doc }) {
-  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner, tiltDeg }) => ({
+  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner, tiltDeg, tiltOriginMm }) => ({
     outerRect,
     innerRect,
     glyphs,
     inner,
     tiltDeg,
+    tiltOriginMm,
   }));
 
   const page = doc.page ?? {};

@@ -39,13 +39,13 @@ export function renderSvgPreview(layoutResult, opts = {}) {
   svg.appendChild(sheet);
 
   for (const card of page.cards) {
-    // Per-card playful tilt is a group rotation about the card centre (the
-    // engine emits `tiltDeg`; the renderer stays thin and only applies it).
+    // Per-card playful tilt is a group rotation about the engine-emitted origin
+    // (the engine emits both `tiltDeg` and its rotation centre `tiltOriginMm`;
+    // the renderer stays thin and only applies them — it derives no geometry).
     const group = document.createElementNS(SVG_NS, "g");
     if (card.tiltDeg) {
-      const cx = card.innerRect.xMm + card.innerRect.widthMm / 2;
-      const cy = card.innerRect.yMm + card.innerRect.heightMm / 2;
-      group.setAttribute("transform", `rotate(${card.tiltDeg} ${cx} ${cy})`);
+      const { xMm, yMm } = card.tiltOriginMm;
+      group.setAttribute("transform", `rotate(${card.tiltDeg} ${xMm} ${yMm})`);
     }
 
     if (card.inner?.visible !== false) group.appendChild(borderRect(card.innerRect, card.inner));
