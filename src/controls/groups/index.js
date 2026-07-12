@@ -11,6 +11,7 @@
  */
 import "./text.group.js";
 import "./presets.group.js";
+import "./page.group.js";
 import "./border.group.js";
 import "./mat.group.js";
 import "./visibility.group.js";
