@@ -11,5 +11,8 @@ node_modules/
 dist/
 build/
 
+# Local agent tooling config
+.claude/
+
 # Local-only process / operating doc (not shipped) — kept out of the repo for now
 DEV_ORCHESTRATION.md
