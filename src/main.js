@@ -7,6 +7,7 @@ import { renderSvgPreview } from "./render/renderSvgPreview.js";
 import { renderSecondPreview, widestCardIndex } from "./render/renderSecondPreview.js";
 import { loadFont } from "./fonts/loadFont.js";
 import { COMIC_NEUE_FAMILY } from "./fonts/comicNeue.js";
+import { exportPdf } from "./export/exportPdf.js";
 import { readStateFromHash } from "./state/shareUrl.js";
 import { renderProjectsPanel } from "./projects/renderProjectsPanel.js";
 import "./style.css";
@@ -53,6 +54,7 @@ const storage = window.localStorage;
 /** @type {{ state: "idle"|"loading"|"ready"|"error", family?: string, loadedBytes?: number, totalBytes?: number|null }} */
 let fontStatus = { state: "idle" };
 let loadedFontKey = null; // `${source}:${family}` of the font currently registered/ready
+let loadedFontTtfBytes = null; // the resolved font's raw TTF bytes (issue #8: PDF embedding needs these)
 
 const app = document.querySelector("#app");
 app.innerHTML = `
@@ -63,6 +65,7 @@ app.innerHTML = `
   <div id="preview-toolbar">
     <label>Zoom (%) <input id="zoom" type="range" min="25" max="200" step="5" /></label>
     <label>Page <select id="page-select"></select></label>
+    <button id="download-pdf" type="button">Download PDF</button>
   </div>
   <div id="second-preview"></div>
   <div id="preview"></div>
@@ -74,6 +77,7 @@ const previewEl = document.querySelector("#preview");
 const secondPreviewEl = document.querySelector("#second-preview");
 const zoomEl = document.querySelector("#zoom");
 const pageSelectEl = document.querySelector("#page-select");
+const downloadPdfEl = document.querySelector("#download-pdf");
 
 zoomEl.addEventListener("input", (event) => {
   ui.zoomPercent = Number(event.target.value) || 100;
@@ -84,6 +88,7 @@ pageSelectEl.addEventListener("change", (event) => {
   ui.selectedCardIndex = null; // a fresh page defaults back to its widest card
   render();
 });
+downloadPdfEl.addEventListener("click", () => downloadPdf());
 
 function render() {
   renderProjectsPanel(projectsEl, storage, state, (next, nextProjectId) => {
@@ -148,6 +153,11 @@ function render() {
   const selectedPage = layoutResult.pages[ui.selectedPageIndex];
   const cardIndex = ui.selectedCardIndex ?? widestCardIndex(selectedPage);
   secondPreviewEl.replaceChildren(renderSecondPreview(selectedPage, cardIndex, renderOpts));
+
+  // Story 57: "Download disabled until the font is ready" — disabled unless
+  // the CURRENTLY selected font (not just some previously-loaded one) has
+  // finished loading and its TTF bytes are in hand to embed.
+  downloadPdfEl.disabled = !(fontStatus.state === "ready" && currentFontKey() === loadedFontKey && loadedFontTtfBytes);
 }
 
 /**
@@ -173,13 +183,14 @@ function ensureFontLoaded(font) {
       // Stale response guard: ignore progress from a font the maker has
       // since navigated away from (SPEC.md seeded-continuity spirit: no
       // surprise UI from an in-flight async op that no longer applies).
-      if (`${source}:${family}` !== `${state.card?.font?.source ?? "builtin"}:${state.card?.font?.family ?? COMIC_NEUE_FAMILY}`) return;
+      if (`${source}:${family}` !== currentFontKey()) return;
       fontStatus = { state: "loading", family, loadedBytes, totalBytes };
       render();
     },
   })
-    .then(() => {
+    .then((resolved) => {
       loadedFontKey = key;
+      loadedFontTtfBytes = resolved.ttfBytes;
       fontStatus = { state: "ready", family };
       render();
     })
@@ -188,6 +199,42 @@ function ensureFontLoaded(font) {
       fontStatus = { state: "error", family };
       render();
     });
+}
+
+/** `${source}:${family}` for whatever font `state` currently selects. */
+function currentFontKey() {
+  const font = state.card?.font;
+  return `${font?.source ?? "builtin"}:${font?.family ?? COMIC_NEUE_FAMILY}`;
+}
+
+/**
+ * Story 56: "a single Download PDF button... the whole multi-page result in
+ * one file." Builds the SAME `LayoutResult` the previews render (SPEC.md:
+ * "same LayoutResult tree... shared metrics -> matches the preview exactly")
+ * and hands it to `exportPdf` with the already-loaded font's TTF bytes
+ * (story 51: "embedded in the PDF"). The button is disabled (see `render()`)
+ * until `loadedFontTtfBytes` is actually in hand, so this never runs against
+ * a stale/missing font (story 57).
+ */
+function downloadPdf() {
+  if (downloadPdfEl.disabled || !loadedFontTtfBytes) return;
+
+  const layoutResult = computeLayout(state, env);
+  const bytes = exportPdf(layoutResult, {
+    fontFamily: state.card?.font?.family ?? COMIC_NEUE_FAMILY,
+    fontBytes: loadedFontTtfBytes,
+    sizePt: state.card?.font?.sizePt,
+    textColor: state.card?.textColor,
+    returnBytes: true,
+  });
+
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${state.name || "playprint"}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 /**
