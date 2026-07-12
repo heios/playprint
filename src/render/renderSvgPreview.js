@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { LayoutResult } from '../engine/types.js' */
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MM_PER_PT = 0.352778;
 
@@ -22,7 +25,7 @@ const MM_PER_PT = 0.352778;
  * positions the engine chose. The glyphs are gated by the card's `textVisible`
  * flag so the Text layer can be hidden for a print pass.
  *
- * @param {{ pages: Array<{ widthMm:number, heightMm:number, cards: Array<object> }> }} layoutResult
+ * @param {LayoutResult} layoutResult
  * @param {{ fontFamily?: string, sizePt?: number, textColor?: string, zoomPercent?: number }} [opts]
  * @returns {HTMLDivElement} a container with one <svg> sheet per page, stacked.
  */

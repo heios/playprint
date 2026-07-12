@@ -1,3 +1,4 @@
+// @ts-check
 import { tokenize } from "./passes/tokenize.js";
 import { size } from "./passes/size.js";
 import { place } from "./passes/place.js";
@@ -6,6 +7,8 @@ import { mat } from "./passes/mat.js";
 import { cardTransform } from "./passes/cardTransform.js";
 import { scatter } from "./passes/scatter.js";
 import { paginate } from "./passes/paginate.js";
+
+/** @import { ProjectState, Env, LayoutResult } from './types.js' */
 
 /**
  * The single source-of-truth entrypoint: `computeLayout(state, env) → LayoutResult`.
@@ -34,7 +37,13 @@ import { paginate } from "./passes/paginate.js";
  */
 const passes = [tokenize, size, place, letterTransforms, mat, cardTransform, scatter, paginate];
 
+/**
+ * @param {ProjectState} state
+ * @param {Env} env
+ * @returns {LayoutResult}
+ */
 export function computeLayout(state, env) {
+  /** @type {any} */
   let ctx = { state, env, doc: undefined };
 
   for (const pass of passes) {

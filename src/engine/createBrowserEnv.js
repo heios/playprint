@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { Env } from './types.js' */
+
 const MM_PER_PT = 0.352778;
 
 /**
@@ -12,14 +15,15 @@ const MM_PER_PT = 0.352778;
  * top edge down to the text baseline, so the engine can emit a render-ready
  * baseline `glyph.y` and the renderers add no vertical offset.
  *
- * @returns {{ measureText(text: string, opts?: { sizePt?: number, fontFamily?: string }): { widthMm: number, heightMm: number, ascentMm: number } }}
+ * @returns {Env}
  */
 export function createBrowserEnv() {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
   return {
-    measureText(text, { sizePt = 24, fontFamily = "sans-serif" } = {}) {
+    measureText(text, opts = {}) {
+      const { sizePt = 24, fontFamily = "sans-serif" } = opts;
       ctx.font = `${sizePt}pt ${fontFamily}`;
       const metrics = ctx.measureText(text);
       const widthPt = metrics.width;

@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { ProjectState } from './types.js' */
+
 /**
  * The canonical ProjectState the app boots with and tests build on — the
  * single object that drives rendering (SPEC.md "State object"). Kept as a
@@ -7,6 +10,8 @@
  * Issue #2 populates only the fields the "Grid, uniform, inner-border" slice
  * needs; later slices (mat, playful letters, random/flexible modes, fonts,
  * projects) fill in their own branches without changing these defaults.
+ *
+ * @returns {ProjectState}
  */
 export function defaultState() {
   return {

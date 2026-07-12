@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { PassContext, LayoutResult } from '../types.js' */
+
 /**
  * Pass 7/7: paginate
  *
@@ -24,6 +27,9 @@
  * overflows the usable height, Random wraps when tokens exceed a page's large
  * cells; a card with no `pageIndex` defaults to page 0. The render contract
  * per card stays fixed regardless of how many pages there are.
+ *
+ * @param {PassContext} ctx
+ * @returns {LayoutResult}
  */
 export function paginate({ doc }) {
   const page = doc.page ?? {};

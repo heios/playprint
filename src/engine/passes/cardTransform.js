@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { seededUnitSigned, seededUnitVector } from "../seededTransform.js";
 
 /**
@@ -28,6 +30,9 @@ import { seededUnitSigned, seededUnitVector } from "../seededTransform.js";
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: { state, env, doc: { rows, cards: TransformedCard[], page } }
  *   TransformedCard: { ...MattedCard, tiltDeg, tiltOriginMm: { xMm, yMm } }
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function cardTransform({ state, env, doc }) {
   const seed = state?.seed ?? 0;

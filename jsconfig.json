@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM"],
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node"
+  },
+  "include": [
+    "src/engine/computeLayout.js",
+    "src/engine/defaultState.js",
+    "src/engine/createBrowserEnv.js",
+    "src/engine/paperSizes.js",
+    "src/engine/passes/*.js",
+    "src/controls/registry.js",
+    "src/render/renderSvgPreview.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/engine/__tests__",
+    "src/**/__tests__",
+    "src/main.js",
+    "src/projects/**",
+    "src/export/**",
+    "src/fonts/**",
+    "src/state/**",
+    "src/controls/renderControls.js",
+    "src/render/renderSecondPreview.js"
+  ]
+}

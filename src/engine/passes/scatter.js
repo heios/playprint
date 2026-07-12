@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { seededUnitSigned, seededUnitVector } from "../seededTransform.js";
 
 /**
@@ -29,6 +31,9 @@ import { seededUnitSigned, seededUnitVector } from "../seededTransform.js";
  *
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: { state, env, doc: { rows, cards, page } }
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function scatter({ state, env, doc }) {
   if ((state?.layout?.mode ?? "grid") !== "random") {
