@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { pdfTiltMatrixParams } from "../render/cardTiltTransform.js";
 
 /**
  * Thin jsPDF renderer over a `LayoutResult` (see `../engine/computeLayout.js`).
@@ -25,10 +26,14 @@ import { jsPDF } from "jspdf";
  * NO sign change needed. A card's `tiltDeg` (rotating the WHOLE card body —
  * both borders and every glyph — about `tiltOriginMm`, exactly as
  * `renderSvgPreview`'s `<g transform="rotate(...)">` does) is instead applied
- * as a graphics-state CTM around that card's draws; jsPDF's raw
- * `setCurrentTransformationMatrix` (unlike its `text` angle option) rotates
- * OPPOSITE the SVG visual direction, so the tilt angle is negated only on
- * that CTM path to compensate — verified by rendering both and comparing.
+ * as a graphics-state CTM around that card's draws, via the SHARED
+ * `pdfTiltMatrixParams` (`../render/cardTiltTransform.js`) — the one place
+ * that derives a PDF `cm` matrix landing at the same points the SVG
+ * renderer's mm-space `rotate(deg, cx, cy)` would (issue #24: `cm` operates
+ * in raw PDF user space — points, Y-up — NOT the engine's mm/Y-down space, so
+ * naively reusing `tiltOriginMm` there rotates about the wrong point and the
+ * card swings out of its grid cell; see that module's doc for the full
+ * derivation).
  *
  * @param {{ pages: Array<{ widthMm:number, heightMm:number, cards: Array<object> }> }} layoutResult
  * @param {{
@@ -133,17 +138,19 @@ function drawGlyph(doc, glyph) {
 /**
  * Wraps the current graphics state in a rotation-about-`originMm` CTM, the
  * PDF-native equivalent of the SVG renderer's per-card
- * `<g transform="rotate(deg cx cy)">` group (see module doc for the sign
- * flip this path — but NOT `text(...,{angle})` — needs).
+ * `<g transform="rotate(deg cx cy)">` group. Delegates the actual matrix
+ * derivation to the shared `pdfTiltMatrixParams` (see module doc + that
+ * function's doc for why raw mm coordinates can't be used directly here).
  */
 function applyTiltCtm(doc, tiltDeg, originMm) {
-  const rad = (-tiltDeg * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const { xMm: cx, yMm: cy } = originMm;
-  const e = cx - cx * cos + cy * sin;
-  const f = cy - cx * sin - cy * cos;
-  doc.setCurrentTransformationMatrix(doc.Matrix(cos, sin, -sin, cos, e, f));
+  const { a, b, c, d, e, f } = pdfTiltMatrixParams(
+    { tiltDeg, originMm },
+    {
+      toPdfX: (xMm) => doc.internal.getHorizontalCoordinate(xMm),
+      toPdfY: (yMm) => doc.internal.getVerticalCoordinate(yMm),
+    },
+  );
+  doc.setCurrentTransformationMatrix(doc.Matrix(a, b, c, d, e, f));
 }
 
 function bytesToBase64(bytes) {
