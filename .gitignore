@@ -10,3 +10,6 @@ node_modules/
 # Build output
 dist/
 build/
+
+# Local-only process / operating doc (not shipped) — kept out of the repo for now
+DEV_ORCHESTRATION.md
