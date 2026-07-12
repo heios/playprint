@@ -157,6 +157,112 @@ describe("renderControls — slider rendering (issue #23)", () => {
     expect(container.querySelector(".font-picker-progress progress").value).toBeCloseTo(0.5);
   });
 
+  it("preserves an edit to one slider when a DIFFERENT slider is changed afterwards (stale-closure regression)", () => {
+    // Reconciliation (issue #23A) means a control's <input> and its listener
+    // are built ONCE and then reused across many renders. If that listener
+    // captured `state`/`onChange` at creation time instead of reading the
+    // current values, it would keep calling `setValue` against the
+    // first-render snapshot forever — so editing Gap, then editing a
+    // DIFFERENT control (Padding), would silently revert Gap back to its
+    // original value the moment Padding's `{...state, paddingMm}` spread ran
+    // against Padding's OWN stale snapshot. This drives the exact loop
+    // main.js uses (`onChange` mutates the outer `state` and re-renders).
+    registerControlGroup({
+      id: "border",
+      label: "Card border",
+      controls: [
+        {
+          id: "gap",
+          label: "Gap (mm)",
+          type: "slider",
+          min: 0,
+          max: 40,
+          step: 0.5,
+          getValue: (state) => state.gapMm ?? 2,
+          setValue: (state, value) => ({ ...state, gapMm: Number(value) }),
+        },
+        {
+          id: "padding",
+          label: "Padding (mm)",
+          type: "slider",
+          min: 0,
+          max: 40,
+          step: 0.5,
+          getValue: (state) => state.paddingMm ?? 4,
+          setValue: (state, value) => ({ ...state, paddingMm: Number(value) }),
+        },
+      ],
+    });
+
+    const container = document.createElement("div");
+    let state = { gapMm: 2, paddingMm: 4 };
+    function render() {
+      renderControls(container, state, (next) => {
+        state = next;
+        render();
+      });
+    }
+    render();
+
+    const [gapInput, paddingInput] = container.querySelectorAll('input[type="range"]');
+
+    gapInput.value = "10";
+    gapInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // Re-query: reconciliation keeps identity, but querying fresh mirrors
+    // what a real user interacting with the live DOM would touch.
+    const paddingInputAfterGapEdit = container.querySelectorAll('input[type="range"]')[1];
+    paddingInputAfterGapEdit.value = "20";
+    paddingInputAfterGapEdit.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(state).toEqual({ gapMm: 10, paddingMm: 20 });
+  });
+
+  it("preserves a slider edit when a preset BUTTON is clicked afterwards (stale-closure regression)", () => {
+    registerControlGroup({
+      id: "border",
+      label: "Card border",
+      controls: [
+        {
+          id: "gap",
+          label: "Gap (mm)",
+          type: "slider",
+          min: 0,
+          max: 40,
+          step: 0.5,
+          getValue: (state) => state.gapMm ?? 2,
+          setValue: (state, value) => ({ ...state, gapMm: Number(value) }),
+        },
+        {
+          id: "resetPadding",
+          label: "Reset padding",
+          type: "button",
+          // Real presets spread {...state}, exactly like this.
+          setValue: (state) => ({ ...state, paddingMm: 99 }),
+        },
+      ],
+    });
+
+    const container = document.createElement("div");
+    let state = { gapMm: 2, paddingMm: 4 };
+    function render() {
+      renderControls(container, state, (next) => {
+        state = next;
+        render();
+      });
+    }
+    render();
+
+    const gapInput = container.querySelector('input[type="range"]');
+    gapInput.value = "10";
+    gapInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const presetButton = container.querySelector("button");
+    presetButton.dispatchEvent(new Event("click", { bubbles: true }));
+
+    expect(state).toEqual({ gapMm: 10, paddingMm: 99 });
+  });
+
   it("does not lose focus/caret in a text control while re-rendering after an unrelated change", () => {
     registerControlGroup({
       id: "text",

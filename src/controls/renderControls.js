@@ -42,6 +42,22 @@ export function renderControls(container, state, onChange, extra = {}) {
   // calls, so a control that already exists keeps its DOM identity (and
   // therefore its live drag/focus) instead of being recreated.
   const registryCache = (container.__ppControlCache ??= new Map());
+
+  // Once-attached listeners (see `renderControl` below) must never close
+  // over the `state`/`onChange` that were live at node-CREATION time —
+  // reconciliation means a control's `<input>`/`<button>` can survive many
+  // renders, and each of those renders may carry a *different* `state`
+  // (e.g. a sibling control just changed a field this control doesn't own).
+  // A closure captured once would keep firing `setValue` against that first
+  // stale snapshot forever, silently reverting every field any other
+  // control had since changed. Instead, listeners are written once but read
+  // `state`/`onChange` off this shared mutable ref, which every render call
+  // refreshes to the current values before doing anything else — so a
+  // listener firing on render #50 always sees render #50's `state`.
+  const live = (container.__ppControlLive ??= { state, onChange });
+  live.state = state;
+  live.onChange = onChange;
+
   const seenKeys = new Set();
   let previousFieldset = null;
 
@@ -75,12 +91,14 @@ export function renderControls(container, state, onChange, extra = {}) {
     for (const control of visibleControls) {
       let controlEntry = entry.controls.get(control.id);
       if (!controlEntry || controlEntry.control.type !== control.type) {
-        const node = renderControl(control, state, onChange, extra);
+        const node = renderControl(control, live, extra);
         controlEntry = { control, node };
         entry.controls.set(control.id, controlEntry);
       } else if (control.type === "button") {
         // Stateless action: nothing to sync (its label doesn't depend on
-        // `state`), and rebuilding would only cost a listener churn.
+        // `state`), and rebuilding would only cost a listener churn. Its
+        // click listener (attached once, in `renderControl`) reads `live`
+        // on each click, so it still sees whatever `state` is current.
         controlEntry.control = control;
       } else if (control.type === "font-picker") {
         // No live drag/focus lives inside a font-picker (it's buttons + a
@@ -91,7 +109,7 @@ export function renderControls(container, state, onChange, extra = {}) {
         // identity survive for controls that can have an in-flight
         // drag/keystroke, which a font-picker never does).
         controlEntry.control = control;
-        const freshNode = renderControl(control, state, onChange, extra);
+        const freshNode = renderControl(control, live, extra);
         controlEntry.node.replaceWith(freshNode);
         controlEntry.node = freshNode;
       } else {
@@ -125,22 +143,37 @@ export function renderControls(container, state, onChange, extra = {}) {
   }
 }
 
-function renderControl(control, state, onChange, extra) {
+/**
+ * Builds a control's DOM node and attaches its listeners exactly once —
+ * reconciliation (see `renderControls` above) means this node, and these
+ * listeners, can outlive many subsequent renders. Every listener therefore
+ * reads the current `state`/`onChange` off `live` (a mutable ref that
+ * `renderControls` refreshes on every call) rather than closing over the
+ * `state`/`onChange` that happened to be live when the listener was
+ * attached — otherwise a listener would keep applying `setValue` against
+ * whatever `state` existed at creation time forever, clobbering any field
+ * another control changed since.
+ *
+ * @param {object} control
+ * @param {{ state: object, onChange: (next: object) => void }} live
+ * @param {object} extra
+ */
+function renderControl(control, live, extra) {
   // A preset "button" is an action, not a bound input: click applies setValue.
   if (control.type === "button") {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = control.label;
-    button.addEventListener("click", () => onChange(control.setValue(state)));
+    button.addEventListener("click", () => live.onChange(control.setValue(live.state)));
     return button;
   }
 
   if (control.type === "font-picker") {
-    return renderFontPicker(control, state, onChange, extra.fontStatus);
+    return renderFontPicker(control, live, extra.fontStatus);
   }
 
   const label = document.createElement("label");
-  const input = createInput(control, state);
+  const input = createInput(control, live.state);
 
   if (control.type === "slider") {
     // Live value readout beside the label (issue #23B — the prototype had
@@ -170,7 +203,7 @@ function renderControl(control, state, onChange, extra) {
   const eventName = control.type === "select" || control.type === "toggle" ? "change" : "input";
   input.addEventListener(eventName, (event) => {
     const value = control.type === "toggle" ? event.target.checked : event.target.value;
-    onChange(control.setValue(state, value));
+    live.onChange(control.setValue(live.state, value));
   });
 
   label.appendChild(input);
@@ -267,7 +300,7 @@ function createInput(control, state) {
  * (SPEC.md story 49). Builtin (Comic Neue) has no thumbnail image — it draws
  * its own label since it needs no fetch and is always instantly available.
  */
-function renderFontPicker(control, state, onChange, fontStatus) {
+function renderFontPicker(control, live, fontStatus) {
   const wrapper = document.createElement("div");
   wrapper.className = "font-picker";
 
@@ -278,7 +311,7 @@ function renderFontPicker(control, state, onChange, fontStatus) {
   const grid = document.createElement("div");
   grid.className = "font-picker-grid";
 
-  const current = control.getValue(state);
+  const current = control.getValue(live.state);
   for (const option of control.options) {
     const button = document.createElement("button");
     button.type = "button";
@@ -297,7 +330,9 @@ function renderFontPicker(control, state, onChange, fontStatus) {
       button.appendChild(label);
     }
 
-    button.addEventListener("click", () => onChange(control.setValue(state, { family: option.family, source: option.source })));
+    button.addEventListener("click", () =>
+      live.onChange(control.setValue(live.state, { family: option.family, source: option.source })),
+    );
     grid.appendChild(button);
   }
   wrapper.appendChild(grid);
