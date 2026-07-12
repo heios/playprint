@@ -229,6 +229,22 @@ body {
   gap: 10px;
 }
 
+/* Slider label row: label text + live value readout (issue #23B — restores
+   the prototype's "Padding (mm)  12" readout the shipped panel dropped). */
+.pp-rail .pp-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pp-rail .slider-readout {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink);
+  flex: none;
+}
+
 /* inputs */
 .pp-rail textarea,
 .pp-rail select,
