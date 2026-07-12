@@ -8,9 +8,11 @@
  * convention) without recomputing geometry.
  *
  * Each card is trimmed to the render contract — `{ outerRect, innerRect,
- * glyphs, inner, tiltDeg, tiltOriginMm }` — dropping the intermediate
- * sizing/placement scratch fields. `tiltDeg` is the per-card playful rotation
- * the renderer applies as a group transform about `tiltOriginMm`, the
+ * glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm }` — dropping the
+ * intermediate sizing/placement scratch fields. `inner`/`outer` carry each
+ * border's style plus its per-pass `visible` flag (SPEC.md stories 22, 27);
+ * `textVisible` gates the glyphs (story 27). `tiltDeg` is the per-card playful
+ * rotation the renderer applies as a group transform about `tiltOriginMm`, the
  * engine-emitted rotation centre (SPEC.md story 34).
  *
  * Input:  { state, env, doc: { rows, cards, page } }
@@ -45,6 +47,6 @@ export function paginate({ doc }) {
 }
 
 /** Trim an internal card down to the render contract. */
-function trim({ outerRect, innerRect, glyphs, inner, tiltDeg, tiltOriginMm }) {
-  return { outerRect, innerRect, glyphs, inner, tiltDeg, tiltOriginMm };
+function trim({ outerRect, innerRect, glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm }) {
+  return { outerRect, innerRect, glyphs, inner, outer, textVisible, tiltDeg, tiltOriginMm };
 }
