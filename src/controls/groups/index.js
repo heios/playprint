@@ -19,3 +19,4 @@ import "./layout.group.js";
 import "./scatter.group.js";
 import "./letters.group.js";
 import "./playful.group.js";
+import "./fonts.group.js";
