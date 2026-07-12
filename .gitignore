@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Local reference material — kept locally, not committed
+.references/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
