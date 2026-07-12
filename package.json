@@ -17,6 +17,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "fonteditor-core": "^2.6.3"
+    "fonteditor-core": "^2.6.3",
+    "lz-string": "^1.5.0"
   }
 }
