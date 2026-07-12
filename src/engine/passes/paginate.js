@@ -1,19 +1,39 @@
 /**
  * Pass 6/6: paginate
  *
- * Slices the fully-laid-out cards into pages of the chosen paper size
- * (SPEC.md user stories 42–46), producing the final `LayoutResult` shape:
- * `{ pages: [{ cards: [{ outerRect, innerRect, glyphs }] }] }`.
+ * Emits the final `LayoutResult` — the value `computeLayout` returns:
+ * `{ pages: [{ widthMm, heightMm, marginMm, cards: [...] }] }`. Each page
+ * carries its paper dimensions in mm so the SVG renderers and the PDF exporter
+ * can set an mm viewBox (SPEC.md "Previews": mm viewBox, `output/page.svg`
+ * convention) without recomputing geometry.
  *
- * Input:  { state, env, doc: { rows, cards } }
- * Output: LayoutResult — the value `computeLayout` returns.
+ * Each card is trimmed to the render contract — `{ outerRect, innerRect,
+ * glyphs, inner }` — dropping the intermediate sizing/placement scratch fields.
  *
- * Stub for issue #1: emits a single page holding every card (no overflow
- * splitting yet). Multi-page flow is a later slice's change to this pass
- * alone; the tree shape it must keep producing is fixed now.
+ * Input:  { state, env, doc: { rows, cards, page } }
+ * Output: LayoutResult.
+ *
+ * Issue #2 emits a single page holding every card; multi-page vertical
+ * overflow is a later slice that only splits `cards` across pages here, keeping
+ * this pass's output shape fixed.
  */
 export function paginate({ doc }) {
-  const cards = doc.cards.map(({ outerRect, innerRect, glyphs }) => ({ outerRect, innerRect, glyphs }));
+  const cards = doc.cards.map(({ outerRect, innerRect, glyphs, inner }) => ({
+    outerRect,
+    innerRect,
+    glyphs,
+    inner,
+  }));
 
-  return { pages: [{ cards }] };
+  const page = doc.page ?? {};
+  return {
+    pages: [
+      {
+        widthMm: page.widthMm,
+        heightMm: page.heightMm,
+        marginMm: page.marginMm,
+        cards,
+      },
+    ],
+  };
 }
