@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { ProjectState } from '../engine/types.js' */
+
 /**
  * Control-panel registration API.
  *

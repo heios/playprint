@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { seededUnitVector } from "../seededTransform.js";
 
 /**
@@ -38,10 +40,16 @@ import { seededUnitVector } from "../seededTransform.js";
  * Output: { state, env, doc: { rows, cards: MattedCard[] } }
  *   MattedCard: { ...CardWithGlyphs, innerRect, outerRect, inner, outer, textVisible }
  *   Rect: { xMm, yMm, widthMm, heightMm }
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function mat({ state, env, doc }) {
+  /** @type {any} */
   const innerSrc = state?.card?.inner ?? {};
+  /** @type {any} */
   const outerSrc = state?.card?.outer ?? {};
+  /** @type {any} */
   const vis = state?.visibility ?? {};
   const seed = state?.seed ?? 0;
 

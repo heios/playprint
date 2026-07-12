@@ -1,3 +1,6 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
+
 /**
  * Pass 1/6: tokenize
  *
@@ -10,6 +13,9 @@
  *
  * This is a stub for issue #1 (scaffold only) — full tokenization rules
  * (soft-wrap, blank-line rows, etc.) land with the layout-engine slices.
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function tokenize({ state, env }) {
   const text = state?.text ?? "";

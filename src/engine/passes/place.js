@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { pageDimensionsMm } from "../paperSizes.js";
 
 /**
@@ -32,6 +34,9 @@ import { pageDimensionsMm } from "../paperSizes.js";
  * Input:  { state, env, doc: { rows, cards } }
  * Output: { state, env, doc: { rows, cards: PlacedCard[], page } }
  *   PlacedCard: { ...SizedCard, xMm, yMm, widthMm, heightMm, pageIndex?, cellMm? }
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function place({ state, env, doc }) {
   const marginMm = state?.page?.marginMm ?? 0;
@@ -52,6 +57,13 @@ export function place({ state, env, doc }) {
 /* --------------------------------------------------------------------------
  * Grid: uniform cells in aligned rows/columns.
  * ------------------------------------------------------------------------ */
+/**
+ * @param {object} params
+ * @param {any} params.state
+ * @param {any} params.doc
+ * @param {any} params.page
+ * @returns {any[]}
+ */
 function placeGrid({ state, doc, page }) {
   const gapMm = state?.layout?.gapMm ?? 0;
   const rowAlign = state?.layout?.rowAlign ?? "center";

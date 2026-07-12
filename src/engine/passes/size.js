@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { letterParams, excursionGrowMm } from "../letterMotion.js";
 
 /**
@@ -26,6 +28,9 @@ import { letterParams, excursionGrowMm } from "../letterMotion.js";
  *     textWidthMm, textHeightMm,   // measured glyph run
  *     innerWidthMm, innerHeightMm, // inner border box (text + padding + grow)
  *   }
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function size({ state, env, doc }) {
   const paddingMm = state?.card?.paddingMm ?? 0;

@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { PassContext } from '../types.js' */
 import { letterParams, glyphOffset } from "../letterMotion.js";
 
 /**
@@ -28,6 +30,9 @@ import { letterParams, glyphOffset } from "../letterMotion.js";
  * Output: { state, env, doc: { rows, cards: CardWithGlyphs[] } }
  *   CardWithGlyphs: { ...PlacedCard, glyphs: Glyph[] }
  *   Glyph: { char, x, y, rotationDeg }  // y is the baseline
+ *
+ * @param {PassContext} ctx
+ * @returns {PassContext}
  */
 export function letterTransforms({ state, env, doc }) {
   const sizePt = state?.card?.font?.sizePt;
