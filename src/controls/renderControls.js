@@ -15,8 +15,13 @@ import { getRegisteredControlGroups } from "./registry.js";
  * @param {object} state current ProjectState
  * @param {(next: object) => void} onChange called with a new state whenever
  *   any control changes.
+ * @param {{ fontStatus?: { state: "idle"|"loading"|"ready"|"error", loadedBytes?: number, totalBytes?: number|null } }} [extra]
+ *   Transient, non-persisted UI state a control may want to reflect (e.g. the
+ *   font-picker's download progress — SPEC.md: "fetched on selection with a
+ *   determinate progress bar"). Kept OUT of `ProjectState` because it is a
+ *   loading-in-flight fact, not a project setting.
  */
-export function renderControls(container, state, onChange) {
+export function renderControls(container, state, onChange, extra = {}) {
   container.replaceChildren();
 
   for (const group of getRegisteredControlGroups()) {
@@ -29,14 +34,14 @@ export function renderControls(container, state, onChange) {
 
     for (const control of group.controls) {
       if (control.isVisible && !control.isVisible(state)) continue;
-      fieldset.appendChild(renderControl(control, state, onChange));
+      fieldset.appendChild(renderControl(control, state, onChange, extra));
     }
 
     container.appendChild(fieldset);
   }
 }
 
-function renderControl(control, state, onChange) {
+function renderControl(control, state, onChange, extra) {
   // A preset "button" is an action, not a bound input: click applies setValue.
   if (control.type === "button") {
     const button = document.createElement("button");
@@ -44,6 +49,10 @@ function renderControl(control, state, onChange) {
     button.textContent = control.label;
     button.addEventListener("click", () => onChange(control.setValue(state)));
     return button;
+  }
+
+  if (control.type === "font-picker") {
+    return renderFontPicker(control, state, onChange, extra.fontStatus);
   }
 
   const label = document.createElement("label");
@@ -105,4 +114,82 @@ function createInput(control, state) {
     el.value = value ?? "";
   }
   return el;
+}
+
+/**
+ * The font-picker control: a grid of radio-style thumbnail buttons (SPEC.md
+ * story 47 — "a sample image of each font instantly, before any load") plus
+ * a determinate progress bar for whichever font is currently loading
+ * (SPEC.md story 49). Builtin (Comic Neue) has no thumbnail image — it draws
+ * its own label since it needs no fetch and is always instantly available.
+ */
+function renderFontPicker(control, state, onChange, fontStatus) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "font-picker";
+
+  const heading = document.createElement("span");
+  heading.textContent = control.label;
+  wrapper.appendChild(heading);
+
+  const grid = document.createElement("div");
+  grid.className = "font-picker-grid";
+
+  const current = control.getValue(state);
+  for (const option of control.options) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "font-picker-option";
+    button.setAttribute("aria-pressed", String(option.family === current.family));
+    if (option.family === current.family) button.classList.add("selected");
+
+    if (option.thumbnailDataUri) {
+      const img = document.createElement("img");
+      img.src = option.thumbnailDataUri;
+      img.alt = option.family;
+      button.appendChild(img);
+    } else {
+      const label = document.createElement("span");
+      label.textContent = option.family;
+      button.appendChild(label);
+    }
+
+    button.addEventListener("click", () => onChange(control.setValue(state, { family: option.family, source: option.source })));
+    grid.appendChild(button);
+  }
+  wrapper.appendChild(grid);
+
+  if (fontStatus && fontStatus.state === "loading") {
+    wrapper.appendChild(renderProgressBar(fontStatus));
+  } else if (fontStatus && fontStatus.state === "error") {
+    const error = document.createElement("p");
+    error.className = "font-picker-error";
+    error.textContent = `Could not load "${fontStatus.family ?? current.family}" — try another font.`;
+    wrapper.appendChild(error);
+  }
+
+  return wrapper;
+}
+
+function renderProgressBar({ loadedBytes = 0, totalBytes = null, family }) {
+  const container = document.createElement("div");
+  container.className = "font-picker-progress";
+
+  const label = document.createElement("span");
+  label.textContent = totalBytes
+    ? `Loading ${family ?? "font"}… ${Math.round((loadedBytes / totalBytes) * 100)}%`
+    : `Loading ${family ?? "font"}…`;
+  container.appendChild(label);
+
+  const progress = document.createElement("progress");
+  progress.max = 1;
+  if (totalBytes) {
+    // Determinate: a real Content-Length-backed fraction (SPEC.md: "a
+    // determinate progress bar (stream vs Content-Length)").
+    progress.value = Math.min(1, loadedBytes / totalBytes);
+  }
+  // else: no `value` attribute -> the browser renders an indeterminate bar,
+  // the honest fallback when Content-Length is unavailable.
+  container.appendChild(progress);
+
+  return container;
 }
