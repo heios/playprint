@@ -8,7 +8,11 @@ const MM_PER_PT = 0.352778;
  * DOM dependency and stays unit-testable with the stub env (see
  * `./__tests__/stubEnv.js`).
  *
- * @returns {{ measureText(text: string, opts?: { sizePt?: number, fontFamily?: string }): { widthMm: number, heightMm: number } }}
+ * `heightMm` is the line-box height; `ascentMm` is the distance from that box's
+ * top edge down to the text baseline, so the engine can emit a render-ready
+ * baseline `glyph.y` and the renderers add no vertical offset.
+ *
+ * @returns {{ measureText(text: string, opts?: { sizePt?: number, fontFamily?: string }): { widthMm: number, heightMm: number, ascentMm: number } }}
  */
 export function createBrowserEnv() {
   const canvas = document.createElement("canvas");
@@ -19,10 +23,19 @@ export function createBrowserEnv() {
       ctx.font = `${sizePt}pt ${fontFamily}`;
       const metrics = ctx.measureText(text);
       const widthPt = metrics.width;
-      return {
-        widthMm: widthPt * MM_PER_PT,
-        heightMm: sizePt * MM_PER_PT * 1.2,
-      };
+
+      // Line-box height (1.2em) and the font's ascent/descent from the baseline.
+      const heightMm = sizePt * MM_PER_PT * 1.2;
+      const ascentPt = metrics.fontBoundingBoxAscent ?? metrics.actualBoundingBoxAscent ?? sizePt * 0.8;
+      const descentPt = metrics.fontBoundingBoxDescent ?? metrics.actualBoundingBoxDescent ?? sizePt * 0.2;
+
+      // Centre the ascent+descent glyph box in the line box, so the baseline sits
+      // (leading/2 + ascent) below the line-box top edge.
+      const glyphBoxMm = (ascentPt + descentPt) * MM_PER_PT;
+      const leadingMm = Math.max(0, heightMm - glyphBoxMm);
+      const ascentMm = leadingMm / 2 + ascentPt * MM_PER_PT;
+
+      return { widthMm: widthPt * MM_PER_PT, heightMm, ascentMm };
     },
   };
 }

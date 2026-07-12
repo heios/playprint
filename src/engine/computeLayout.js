@@ -26,7 +26,7 @@ import { paginate } from "./passes/paginate.js";
  * previous pass produced and adds/refines fields on it.
  *
  * `env` supplies I/O the pure engine cannot do itself — currently just
- * `measureText(text, opts) → { widthMm, heightMm }`, backed by a page-side
+ * `measureText(text, opts) → { widthMm, heightMm, ascentMm }`, backed by a page-side
  * canvas in the real app and a stub in tests (see
  * `./__tests__/stubEnv.js`), so preview and PDF measure text identically.
  */

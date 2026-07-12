@@ -29,21 +29,74 @@ export function renderControls(container, state, onChange) {
 
     for (const control of group.controls) {
       if (control.isVisible && !control.isVisible(state)) continue;
-
-      const label = document.createElement("label");
-      label.textContent = control.label;
-
-      const input = document.createElement(control.type === "text" ? "textarea" : "input");
-      if (control.type !== "text") input.type = control.type === "toggle" ? "checkbox" : "text";
-      input.value = control.getValue(state);
-      input.addEventListener("input", (event) => {
-        onChange(control.setValue(state, event.target.value));
-      });
-
-      label.appendChild(input);
-      fieldset.appendChild(label);
+      fieldset.appendChild(renderControl(control, state, onChange));
     }
 
     container.appendChild(fieldset);
   }
+}
+
+function renderControl(control, state, onChange) {
+  // A preset "button" is an action, not a bound input: click applies setValue.
+  if (control.type === "button") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = control.label;
+    button.addEventListener("click", () => onChange(control.setValue(state)));
+    return button;
+  }
+
+  const label = document.createElement("label");
+  label.textContent = control.label;
+
+  const input = createInput(control, state);
+  const eventName = control.type === "select" || control.type === "toggle" ? "change" : "input";
+  input.addEventListener(eventName, (event) => {
+    const value = control.type === "toggle" ? event.target.checked : event.target.value;
+    onChange(control.setValue(state, value));
+  });
+
+  label.appendChild(input);
+  return label;
+}
+
+function createInput(control, state) {
+  const value = control.getValue(state);
+
+  if (control.type === "text") {
+    const el = document.createElement("textarea");
+    el.value = value ?? "";
+    return el;
+  }
+
+  if (control.type === "select") {
+    const el = document.createElement("select");
+    for (const option of control.options ?? []) {
+      const opt = document.createElement("option");
+      opt.value = option;
+      opt.textContent = option;
+      if (option === value) opt.selected = true;
+      el.appendChild(opt);
+    }
+    return el;
+  }
+
+  const el = document.createElement("input");
+  if (control.type === "toggle") {
+    el.type = "checkbox";
+    el.checked = Boolean(value);
+  } else if (control.type === "color") {
+    el.type = "color";
+    el.value = value ?? "#000000";
+  } else if (control.type === "slider") {
+    el.type = "range";
+    el.min = String(control.min ?? 0);
+    el.max = String(control.max ?? 40);
+    el.step = String(control.step ?? 0.5);
+    el.value = String(value ?? 0);
+  } else {
+    el.type = "text";
+    el.value = value ?? "";
+  }
+  return el;
 }
