@@ -4,13 +4,38 @@ body {
   color: #222;
 }
 
-#preview svg {
-  width: 100%;
-  max-width: 600px;
-  height: 300px;
-  border: 1px solid #ccc;
-}
-
 fieldset {
   margin-bottom: 1rem;
+}
+
+#preview-toolbar {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+#second-preview svg {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  border: 1px dashed #ccc;
+  margin-bottom: 1rem;
+}
+
+#preview {
+  max-height: 80vh;
+  overflow: auto;
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+}
+
+.preview-pages {
+  align-items: flex-start;
+}
+
+.preview-page svg {
+  display: block;
+  border: 1px solid #ccc;
+  cursor: pointer;
 }

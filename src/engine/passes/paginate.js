@@ -18,9 +18,11 @@
  * Input:  { state, env, doc: { rows, cards, page } }
  * Output: LayoutResult.
  *
- * Cards that carry a `pageIndex` (Random mode's large-cell paging) are split
- * across that many pages; otherwise every card lands on a single page (the Grid
- * / Flexible modes flow vertically on one sheet for now). The render contract
+ * Cards are split across pages by the `pageIndex` every layout mode's `place`
+ * branch already assigns (SPEC.md story 46: "All modes paginate across as many
+ * pages as needed") — Grid/Flexible wrap to a new page when the next row
+ * overflows the usable height, Random wraps when tokens exceed a page's large
+ * cells; a card with no `pageIndex` defaults to page 0. The render contract
  * per card stays fixed regardless of how many pages there are.
  */
 export function paginate({ doc }) {
